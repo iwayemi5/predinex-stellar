@@ -7,8 +7,11 @@
  * surfaces that still call into `connectWallet` or `isWalletAvailable`.
  */
 
-import { createFreighterAdapter, isFreighterInstalled } from './freighter-adapter';
-import { createWalletError, WalletErrorType } from './wallet-errors';
+import { FinishedAuthData, showConnect, UserSession } from '@stacks/connect';
+import { handleWalletError, WalletError } from './wallet-errors';
+import { createScopedLogger } from './logger';
+
+const log = createScopedLogger('wallet-connector');
 
 /**
  * Keep the legacy union so older components and tests continue to compile,
@@ -24,21 +27,105 @@ export interface WalletConnectionOptions {
 }
 
 export async function connectWallet(options: WalletConnectionOptions): Promise<void> {
-  const wallet = createFreighterAdapter(() => {});
+    const { walletType, userSession, onFinish, onCancel } = options;
 
-  if (!isFreighterInstalled()) {
-    throw createWalletError(WalletErrorType.EXTENSION_NOT_FOUND, 'Freighter');
-  }
-
-  try {
-    await wallet.connect();
-    options.onFinish?.();
-  } catch (error) {
-    options.onCancel?.();
-    throw error;
-  }
+    try {
+        switch (walletType) {
+            case 'leather':
+            case 'xverse':
+                await connectExtensionWallet(walletType, userSession, onFinish, onCancel);
+                break;
+            case 'walletconnect':
+                await connectWalletConnect(userSession, onFinish, onCancel);
+                break;
+            default:
+                throw new Error(`Unsupported wallet type: ${walletType}`);
+        }
+    } catch (error) {
+        log.error(`Error connecting to ${walletType}`, error);
+        const walletError = handleWalletError(error, walletType);
+        throw walletError;
+    }
 }
 
+/**
+ * Internal helper to handle connections for extension-based wallets (Leather and Xverse).
+ * Uses the Stacks Connect library to trigger the browser extension popup.
+ * 
+ * @param walletType - The type of extension wallet ('leather' or 'xverse')
+ * @param userSession - The active session to be updated
+ * @param onFinish - Success callback
+ * @param onCancel - Cancellation callback
+ */
+async function connectExtensionWallet(
+    walletType: 'leather' | 'xverse',
+    userSession: UserSession,
+    onFinish?: (authData: FinishedAuthData) => void,
+    onCancel?: () => void
+): Promise<void> {
+    await showConnect({
+        appDetails: {
+            name: WALLET_CONFIG.name,
+            icon: WALLET_CONFIG.icon,
+        },
+        redirectTo: WALLET_CONFIG.redirectTo,
+        userSession,
+        onFinish: async (authData) => {
+            log.debug(`${walletType} authentication finished`);
+            if (onFinish) {
+                onFinish(authData);
+            }
+        },
+        onCancel: () => {
+            log.debug(`User cancelled ${walletType} connection`);
+            if (onCancel) {
+                onCancel();
+            }
+        },
+    });
+}
+
+/**
+ * Internal helper to handle connections via the WalletConnect protocol.
+ * Suitable for connecting to mobile wallets by displaying a QR code.
+ * 
+ * @param userSession - The active session to be updated
+ * @param onFinish - Success callback
+ * @param onCancel - Cancellation callback
+ */
+async function connectWalletConnect(
+    userSession: UserSession,
+    onFinish?: (authData: FinishedAuthData) => void,
+    onCancel?: () => void
+): Promise<void> {
+    await showConnect({
+        appDetails: {
+            name: WALLET_CONFIG.name,
+            icon: WALLET_CONFIG.icon,
+        },
+        redirectTo: WALLET_CONFIG.redirectTo,
+        userSession,
+        onFinish: async (authData) => {
+            log.debug('WalletConnect authentication finished');
+            if (onFinish) {
+                onFinish(authData);
+            }
+        },
+        onCancel: () => {
+            log.debug('User cancelled WalletConnect connection');
+            if (onCancel) {
+                onCancel();
+            }
+        },
+    });
+}
+
+/**
+ * Verifies if a specific wallet extension is installed and available in the user's browser.
+ * 
+ * @param walletType - The wallet provider to check for
+ * @returns True if the wallet is detected, false otherwise
+ */
 export function isWalletAvailable(walletType: WalletType): boolean {
   if (walletType === 'walletconnect') {
     return true;

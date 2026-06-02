@@ -100,7 +100,8 @@ export function useLeaderboard(currentUserAddress?: string | null): UseLeaderboa
         setUserBettorRank(rankedBettors.find((e) => e.address === currentUserAddress)?.rank ?? null);
         setUserCreatorRank(rankedCreators.find((e) => e.address === currentUserAddress)?.rank ?? null);
       }
-    } catch {
+    } catch (e) {
+      log.error('useLeaderboard error:', e);
       setError('Failed to load leaderboard. Please try again.');
     } finally {
       setIsLoading(false);

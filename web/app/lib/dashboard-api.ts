@@ -16,7 +16,9 @@ import {
   calculateBetProfitLoss
 } from "./dashboard-utils";
 import { getRuntimeConfig } from "./runtime-config";
-import { getCurrentBlockHeight } from "./market-utils";
+import { createScopedLogger } from "./logger";
+
+const log = createScopedLogger('dashboard-api');
 
 function getStacksNetwork(): StacksNetwork {
   const cfg = getRuntimeConfig();

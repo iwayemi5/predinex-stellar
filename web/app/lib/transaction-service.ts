@@ -107,13 +107,8 @@ export class TransactionService {
         totalCost: Number(feeEstimate),
       };
     } catch (error) {
-      console.error('Transaction estimation failed:', error);
-      // Fallback to conservative estimates if API fails
-      return {
-        estimatedFee: 10000,
-        estimatedNonce: 0,
-        totalCost: 10000,
-      };
+      log.error('Transaction estimation failed', error);
+      return { estimatedFee: 1000, estimatedNonce: 0, totalCost: 1000 };
     }
   }
 

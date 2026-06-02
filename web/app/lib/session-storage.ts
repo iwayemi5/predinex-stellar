@@ -152,7 +152,8 @@ export class SessionStorageService {
         : raw; // plain JSON — no fake obfuscation
       localStorage.setItem(this.STORAGE_KEY, stored);
     } catch (error) {
-      throw new Error(`Session storage failed: ${error instanceof Error ? error.message : String(error)}`);
+      log.error('Failed to store session', error);
+      throw new Error('Session storage failed');
     }
   }
 
@@ -199,7 +200,8 @@ export class SessionStorageService {
         connectedAt: new Date(storedSession.session.connectedAt),
         lastActivity: new Date(storedSession.session.lastActivity),
       };
-    } catch {
+    } catch (error) {
+      log.error('Failed to retrieve session', error);
       this.clearSession();
       return null;
     }
@@ -209,8 +211,8 @@ export class SessionStorageService {
   static clearSession(): void {
     try {
       localStorage.removeItem(this.STORAGE_KEY);
-    } catch {
-      // Ignore — storage might be unavailable
+    } catch (error) {
+      log.error('Failed to clear session', error);
     }
   }
 
@@ -230,8 +232,15 @@ export class SessionStorageService {
 
   /**
    * Get storage usage info.
-   * Uses navigator.storage.estimate() where available (no side effects).
-   * Sync fallback counts existing localStorage keys only.
+   *
+   * Uses the async Storage API (navigator.storage.estimate) where available,
+   * with a synchronous fallback that only calculates already-used space by
+   * iterating existing localStorage keys — it no longer writes test data to
+   * localStorage, eliminating the previous 10 MB quota-filling side effect.
+   *
+   * Note: call the async variant `getStorageInfoAsync()` when you need the
+   * available-quota figure; this sync overload returns `available: 0` on
+   * browsers that lack the Storage API.
    */
   static getStorageInfo(): { used: number; available: number } {
     try {
@@ -247,6 +256,11 @@ export class SessionStorageService {
     }
   }
 
+  /**
+   * Async variant that uses navigator.storage.estimate() to determine both
+   * used and available quota without writing any test data to localStorage.
+   * Falls back to the sync getStorageInfo() on unsupported browsers.
+   */
   static async getStorageInfoAsync(): Promise<{ used: number; available: number }> {
     try {
       if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
@@ -254,25 +268,8 @@ export class SessionStorageService {
         return { used: usage, available: quota - usage };
       }
     } catch {
-      // Storage API unavailable
+      // Storage API unavailable — fall through to sync fallback
     }
     return this.getStorageInfo();
-  }
-
-  // ── private ────────────────────────────────────────────────────────────────
-
-  private static isValidSession(session: unknown): session is WalletSession {
-    if (!session || typeof session !== 'object') return false;
-    const s = session as Record<string, unknown>;
-    return (
-      typeof s.address === 'string' &&
-      typeof s.publicKey === 'string' &&
-      typeof s.network === 'string' &&
-      typeof s.balance === 'number' &&
-      typeof s.isConnected === 'boolean' &&
-      typeof s.walletType === 'string' &&
-      s.connectedAt != null &&
-      s.lastActivity != null
-    );
   }
 }

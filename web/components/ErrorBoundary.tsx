@@ -1,7 +1,8 @@
 'use client';
 
-import { Component, ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { logger } from '@/app/lib/logger';
 
 interface Props {
     children: ReactNode;
@@ -23,8 +24,17 @@ export default class ErrorBoundary extends Component<Props, State> {
         return { hasError: true, error };
     }
 
-    componentDidCatch(error: Error, errorInfo: any) {
-        console.error('Wallet connection error boundary caught an error:', error, errorInfo);
+    public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        logger.error('Uncaught error', 'ErrorBoundary', {
+            message: error.message,
+            componentStack: errorInfo.componentStack,
+        });
+        import('@/app/lib/error-reporter').then(({ reportError }) =>
+            reportError(error, {
+                componentStack: errorInfo.componentStack ?? undefined,
+                boundary: 'ErrorBoundary',
+            })
+        );
     }
 
     render() {
