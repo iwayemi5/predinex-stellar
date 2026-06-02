@@ -223,11 +223,44 @@ export class SessionStorageService {
 
   /** Returns true when a session key exists (regardless of validity). */
   static hasStoredSession(): boolean {
-    try {
-      return localStorage.getItem(this.STORAGE_KEY) !== null;
-    } catch {
-      return false;
-    }
+    return localStorage.getItem(this.STORAGE_KEY) !== null;
+  }
+
+  /**
+   * Validate session structure
+   */
+  private static isValidSession(session: unknown): session is WalletSession {
+    if (!session || typeof session !== 'object') return false;
+    const s = session as Record<string, unknown>;
+    return (
+      typeof s.address === 'string' &&
+      typeof s.publicKey === 'string' &&
+      typeof s.network === 'string' &&
+      typeof s.balance === 'number' &&
+      typeof s.isConnected === 'boolean' &&
+      typeof s.walletType === 'string' &&
+      s.connectedAt != null &&
+      s.lastActivity != null
+    );
+  }
+
+  /**
+   * Simple encryption for session data
+   * Note: This is basic obfuscation, not cryptographically secure
+   */
+  private static encryptData(data: string): string {
+    // Simple base64 encoding with rotation
+    const encoded = btoa(data);
+    return encoded.split('').reverse().join('');
+  }
+
+  /**
+   * Simple decryption for session data
+   */
+  private static decryptData(data: string): string {
+    // Reverse the rotation and decode
+    const reversed = data.split('').reverse().join('');
+    return atob(reversed);
   }
 
   /**

@@ -131,5 +131,16 @@ export function isWalletAvailable(walletType: WalletType): boolean {
     return true;
   }
 
-  return isFreighterInstalled();
+    switch (walletType) {
+        case 'leather':
+            return !!(window as Window & { LeatherProvider?: unknown; stacksProvider?: unknown }).LeatherProvider
+                || !!(window as Window & { LeatherProvider?: unknown; stacksProvider?: unknown }).stacksProvider;
+        case 'xverse':
+            return !!(window as Window & { XverseProvider?: unknown; xverse?: unknown }).XverseProvider
+                || !!(window as Window & { XverseProvider?: unknown; xverse?: unknown }).xverse;
+        case 'walletconnect':
+            return true; // WalletConnect is always available via QR
+        default:
+            return false;
+    }
 }

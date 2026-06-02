@@ -133,9 +133,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     log.debug('User cancelled wallet connection');
                 },
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             log.error(`Wallet connection error for ${walletType}`, error);
-            const errorMessage = error?.message || 'Failed to connect. Please try again.';
+            const errorMessage = (error instanceof Error ? error.message : String(error)) || 'Failed to connect. Please try again.';
             if (walletType === 'walletconnect' || errorMessage.toLowerCase().includes('unsupported')) {
                 setWalletError('Unsupported provider. Please use a Stellar-compatible wallet.');
             } else {
