@@ -21,8 +21,25 @@ extern crate std;
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events},
-    Address, Env, String, Vec, TryFromVal, Symbol,
+    Address, Env, String, Val, Vec,
 };
+
+fn has_event_topic(env: &Env, events: &soroban_sdk::testutils::ContractEvents, name: &str) -> bool {
+    events.events().iter().any(|event| {
+        match &event.body {
+            soroban_sdk::xdr::ContractEventBody::V0(v0) => {
+                if let Some(first) = v0.topics.first() {
+                    if let Ok(val) = <Val as soroban_sdk::TryFromVal<Env, soroban_sdk::xdr::ScVal>>::try_from_val(env, first) {
+                        if let Ok(sym) = <soroban_sdk::Symbol as soroban_sdk::TryFromVal<Env, Val>>::try_from_val(env, &val) {
+                            return sym == soroban_sdk::Symbol::new(env, name);
+                        }
+                    }
+                }
+                false
+            }
+        }
+    })
+}
 
 // ── Test harness ──────────────────────────────────────────────────────────────
 
@@ -260,11 +277,7 @@ fn test_register_webhook_emits_webhook_registered_event() {
         .register_webhook(&ctx.admin, &url, &ctx.event_types_one());
 
     let events = ctx.env.events().all();
-    let found = events.iter().any(|(_, topics, _)| {
-        topics
-            .iter()
-            .any(|t| Symbol::try_from_val(&ctx.env, &t) == Ok(Symbol::new(&ctx.env, "webhook_registered")))
-    });
+    let found = has_event_topic(&ctx.env, &events, "webhook_registered");
     assert!(found, "expected webhook_registered event to be emitted");
 }
 
@@ -339,10 +352,6 @@ fn test_unregister_webhook_emits_webhook_unregistered_event() {
     ctx.client.unregister_webhook(&ctx.admin, &url);
 
     let events = ctx.env.events().all();
-    let found = events.iter().any(|(_, topics, _)| {
-        topics
-            .iter()
-            .any(|t| Symbol::try_from_val(&ctx.env, &t) == Ok(Symbol::new(&ctx.env, "webhook_unregistered")))
-    });
+    let found = has_event_topic(&ctx.env, &events, "webhook_unregistered");
     assert!(found, "expected webhook_unregistered event to be emitted");
 }
